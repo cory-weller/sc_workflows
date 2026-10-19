@@ -32,8 +32,8 @@ rule run_cellranger:
     script: 'scripts/cellranger.sh'
 
 rule run_cellbender:
-    input: bam= cellranger.dir + '/{library}/possorted_genome_bam.bam'
-    output: h5= cellbender.dir + '/{library}/filtered.h5'
+    input: raw=cellranger.dir + '/{library}/raw_feature_bc_matrix.h5'
+    output: filtered= cellbender.dir + '/{library}/filtered.h5'
     envmodules: cellbender.module
     resources:
         slurm_partition = slurm.gpu_partition,

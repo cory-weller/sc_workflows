@@ -37,3 +37,4 @@ mkdir -p $OUTDIR
 
 # Move contents from cellranger/outs to permanent disk location
 cp -r ${snakemake_wildcards[library]}/outs/. $OUTDIR/
+
