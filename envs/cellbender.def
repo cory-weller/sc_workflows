@@ -1,0 +1,36 @@
+Bootstrap: docker
+From: nvcr.io/nvidia/pytorch:26.08-py3
+
+%labels
+    Maintainer you@example.com
+    Description NGC PyTorch (H200/Hopper) + CellBender 0.4.0
+
+%environment
+    export DEBIAN_FRONTEND=noninteractive
+    # H200 is Hopper -> sm_90
+    export TORCH_CUDA_ARCH_LIST="9.0"
+
+%post
+    export DEBIAN_FRONTEND=noninteractive
+
+    # Core scientific deps CellBender needs (torch already present in the image).
+    # Note: the HDF5 package is "tables" on PyPI (it's "pytables" only on conda).
+    pip install --no-cache-dir \
+        "pyro-ppl>=1.9.1" "anndata>=0.9" dill "matplotlib>=3.9" \
+        pandas numpy tables psutil ipykernel ipython nbconvert lxml-html-clean
+
+    # Install CellBender itself without letting it re-resolve torch
+    pip install --no-cache-dir --no-deps cellbender
+
+    # Sanity: confirm torch wasn't downgraded/replaced by the installs above.
+    # NOTE: don't check cuda.is_available() here — no GPU is visible during build.
+    # This only verifies the CUDA-enabled wheel is still present.
+    python -c "import torch; assert torch.version.cuda is not None, 'torch lost its CUDA build'; print('torch', torch.__version__, 'built for cuda', torch.version.cuda)"
+
+%test
+    python -c "import torch, cellbender; \
+print('torch', torch.__version__, 'cuda', torch.version.cuda, 'avail', torch.cuda.is_available())"
+    cellbender --help >/dev/null && echo "cellbender OK"
+
+%runscript
+    exec cellbender "$@"
