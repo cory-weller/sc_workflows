@@ -6,7 +6,7 @@ echo "Temporary working directory: $TMPDIR"
 
 # Get full path name for outputs
 INH5=$(readlink -e ${snakemake_input[raw]})
-OUTH5=$(dirname $(readlink -m ${snakemake_output[filtered]}))
+OUTDIR=$(dirname $(readlink -m ${snakemake_output[filtered]}))
 
 
 # Work in temporary dir
@@ -22,7 +22,7 @@ echo $(ls -la "$PWD")
 CMD=(bash cellbender remove-background \
     --cuda \
     --input $INH5 \
-    --output output.h5)
+    --output output_filtered.h5)
 
 # Print command to terminal for log
 echo ${CMD[@]}
