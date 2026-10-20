@@ -17,4 +17,3 @@ dependencies:
     - pip           # <- must be listed as a conda dependency
     - pip:
         - synapseclient
-        - snakemake-executor-plugin-slurm
