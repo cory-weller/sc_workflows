@@ -20,7 +20,9 @@ cd $TMPDIR
 # copy donor list to temporary dir, skip line 1 which is `sample_id` header
 # And replace text from BLM0 to end of line
 
-awk '{NR > 1}' ${snakemake_input[donor_list]} | sed 's/BLM0.*$//g' > donor_list.txt
+
+
+
 
 
 bcftools view $GENOTYPE_VCF -R $CELLSNP_VCF -Oz -o sub.vcf.gz
