@@ -14,6 +14,8 @@ dependencies:
     - anndata
     - scipy
     - regex
+    - cellsnp-lite
     - pip           # <- must be listed as a conda dependency
     - pip:
         - synapseclient
+        - git+https://github.com/single-cell-genetics/vireo
