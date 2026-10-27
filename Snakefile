@@ -14,6 +14,9 @@ slurm = config.slurm
 cellranger = config.cellranger
 cellbender = config.cellbender
 qc = config.qc
+qc_extract = config.qc_extract
+cellsnp = config.cellsnp
+vireo = config.vireo
 
 rule run_cellranger:
     input: csv = cellranger.dir + '/{library}/libraries.csv'
@@ -35,7 +38,6 @@ rule run_cellranger:
 rule run_cellbender:
     input: raw=cellranger.dir + '/{library}/raw_feature_bc_matrix.h5'
     output: filtered= cellbender.dir + '/{library}/output_filtered.h5'
-    envmodules: cellbender.module
     resources:
         slurm_partition = slurm.gpu_partition,
         gres = f"lscratch:{cellbender.scratch_gb}",
@@ -81,28 +83,92 @@ rule qc_barcodes:
         mem_mb = qc.mem_mb
     script: 'scripts/qc-barcodes.py'
 
+rule download_10x_subset_binary:
+    '''
+    downloads subset-bam_linux from github
+    '''
+    output: tenx_subset_binary=cellbender.dir + '/subset-bam_linux'
+    params: link = 'https://github.com/10XGenomics/subset-bam/releases/download/v1.1.0/subset-bam_linux'
+    shell:
+        '''
+        wget -P {config.cellbender.dir}/ {params.link} 
+        chmod +x {output}
+        '''
 
-# rule extract_qc_barcodes:
-#     '''
-#     subsets 10x bam to only barcodes in provided text input
-#     '''
-#     input: 
-#         cr_bam=cellranger.dir + '/{library}/possorted_genome_bam.bam',
-#         good_bcs=DATA +"/CELLBENDER/{libraryID}/qc-barcodes.txt"
-#     output:
-#         qc_bam=DATA +"/CELLRANGER/{libraryID}/qc_bam.bam"
-#     params:
-#         workdir= DATA +"/CELLRANGER/{libraryID}",
-#         tenx_subset_binary=DATA +"/subset-bam_linux",
-#         somalier_binary=DATA +"/somalier",
-#         somalier_sites=DATA +"/sites.hg38.rna.vcf.gz",
-#     shell:
-#         '''
-#         wget https://github.com/10XGenomics/subset-bam/releases/download/v1.1.0/subset-bam_linux
-#         cd {params.workdir}
-#         {params.tenx_subset_binary} \
-#             --bam {input.cr_bam} \
-#             --cores {resources.cpus_per_task} \
-#             --cell-barcodes {input.good_bcs} \
-#             --out-bam {output.qc_bam}
-#         '''
+rule extract_qc_barcodes:
+    '''
+    subsets 10x bam to only barcodes in provided text input
+    '''
+    input: 
+        bam = cellranger.dir + '/{library}/possorted_genome_bam.bam',
+        good_bcs=cellbender.dir + '/{library}/qc-barcodes.txt',
+        tenx_subset_binary=cellbender.dir + '/subset-bam_linux'
+    output:
+        qc_bam = cellranger.dir + '_QC/{library}/possorted_genome_bam.bam'
+    params:
+        scratch=slurm.scratch_dir,
+    resources:
+        gres            = f"lscratch:{cellbender.scratch_gb}",
+        cpus_per_task   = qc_extract.cpus_per_task,
+        mem_mb          = qc_extract.mem_mb,
+        runtime         = qc_extract.runtime,
+        slurm_partition       = qc_extract.partition
+    script: 'scripts/extract_qc_barcodes.sh'
+
+
+rule download_variants:
+    '''
+    downloads hg38 list of 7.4M SNPs with minor allele frequency (MAF) > 0.05
+    '''
+    output: variant_vcf=cellbender.dir + '/genome1K.phase3.SNP_AF5e2.chr1toX.hg38.vcf.gz'
+    params: link = 'https://downloads.sourceforge.net/project/cellsnp/SNPlist/genome1K.phase3.SNP_AF5e2.chr1toX.hg38.vcf.gz?ts=gAAAAABq21sviO-5LbOYEPzRReat1QUDD3Hdtj95e7DB13ajy2_BuQxYVdrDk4881BDw1YhHlzOcyqXkoU4jPtf1P3GdkQ2s3A%3D%3D&r=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fcellsnp%2Ffiles%2FSNPlist%2Fgenome1K.phase3.SNP_AF5e2.chr1toX.hg38.vcf.gz%2Fdownload'
+    shell:
+        '''
+        wget -O {output} {params.link} 
+        '''
+
+rule cellsnplite:
+    '''
+    generates pileup for 10x data
+    Mode 2a: droplet based single cells without given SNPs (infer variants from pileup)
+    '''
+    input: 
+        qc_bam = cellranger.dir + '/{library}/possorted_genome_bam.bam',
+        variant_vcf=cellbender.dir + '/genome1K.phase3.SNP_AF5e2.chr1toX.hg38.vcf.gz',
+        good_bcs=cellbender.dir + '/{library}/qc-barcodes.txt'
+    output:
+        vcf = cellranger.dir + '_QC/{library}/cellSNP/cellSNP.cells.vcf.gz'
+    conda: 'envs/python-env.yaml'
+    params:
+        scratch=slurm.scratch_dir,
+        min_MAF=0.1,
+        min_count=20
+    resources:
+        gres            = f"lscratch:{cellsnp.scratch_gb}",
+        cpus_per_task   = cellsnp.cpus_per_task,
+        mem_mb          = cellsnp.mem_mb,
+        runtime         = cellsnp.runtime,
+        slurm_partition = cellsnp.partition
+    script: 'scripts/cellsnp-lite.sh'
+
+rule vireo:
+    '''
+    generates pileup for 10x data
+    Mode 2a: droplet based single cells without given SNPs (infer variants from pileup)
+    '''
+    input: 
+        genotypes_vcf = vireo.dir + '/genotypes.vcf.gz',
+        cellsnp_vcf = cellranger.dir + '_QC/{library}/cellSNP/cellSNP.cells.vcf.gz',
+        donor_list = config.preprocess.reads_organized + '/{library}/provided_sample_list.txt'
+    output:
+        out=config.vireo.dir +'/{library}/donor_ids.tsv'
+    conda: 'envs/python-env.yaml'
+    params:
+        scratch=slurm.scratch_dir,
+    resources:
+        gres                = f"lscratch:{vireo.scratch_gb}",
+        cpus_per_task       = vireo.cpus_per_task,
+        mem_mb              = vireo.mem_mb,
+        runtime             = vireo.runtime,
+        slurm_partition     = vireo.partition
+    script: 'scripts/vireo.sh'
