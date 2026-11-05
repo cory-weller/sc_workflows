@@ -15,6 +15,7 @@ dependencies:
     - scipy
     - regex
     - cellsnp-lite
+    - bcftools
     - pip           # <- must be listed as a conda dependency
     - pip:
         - synapseclient
