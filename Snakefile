@@ -151,20 +151,23 @@ rule cellsnplite:
         slurm_partition = cellsnp.partition
     script: 'scripts/cellsnp-lite.sh'
 
+
 rule vireo:
     '''
     generates pileup for 10x data
     Mode 2a: droplet based single cells without given SNPs (infer variants from pileup)
     '''
     input: 
-        genotypes_vcf = vireo.dir + '/genotypes.vcf.gz',
+        genotypes_vcf = vireo.dir + '/genotypes.snps.vcf.gz',
+        index = vireo.dir + '/genotypes.vcf.gz.tbi',
         cellsnp_vcf = cellranger.dir + '_QC/{library}/cellSNP/cellSNP.cells.vcf.gz',
         donor_list = config.preprocess.reads_organized + '/{library}/provided_sample_list.txt'
     output:
-        out=config.vireo.dir +'/{library}/donor_ids.tsv'
+        out=config.vireo.dir +'/{library}/chunk_{chunk}/donor_ids.tsv'
     conda: 'envs/python-env.yaml'
     params:
         scratch=slurm.scratch_dir,
+        chunks=vireo.chunks
     resources:
         gres                = f"lscratch:{vireo.scratch_gb}",
         cpus_per_task       = vireo.cpus_per_task,
