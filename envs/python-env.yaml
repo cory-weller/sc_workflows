@@ -16,6 +16,7 @@ dependencies:
     - regex
     - cellsnp-lite
     - bcftools
+    - bedops
     - pip           # <- must be listed as a conda dependency
     - pip:
         - synapseclient
