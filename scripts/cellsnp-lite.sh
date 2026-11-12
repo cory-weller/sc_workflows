@@ -27,6 +27,12 @@ echo ${CMD[@]}
 
 ${CMD[@]}
 
+# Sort cellsnp output, because for some reason it doesn't do it
+bcftools sort cellSNP/cellSNP.cells.vcf.gz -O z -o cellSNP/cellSNP.cells.sorted.vcf.gz
+bcftools index -t cellSNP/cellSNP.cells.sorted.vcf.gz
+rm cellSNP/cellSNP.cells.vcf.gz
+
 echo "moving output to $OUTDIR"
+
 
 rsync -av cellSNP/* $OUTDIR/
