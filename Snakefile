@@ -17,6 +17,8 @@ qc = config.qc
 qc_extract = config.qc_extract
 cellsnp = config.cellsnp
 vireo = config.vireo
+preprocess = config.preprocess
+scanpy_single = config.scanpy_single
 
 rule run_cellranger:
     input: csv = cellranger.dir + '/{library}/libraries.csv'
@@ -113,7 +115,7 @@ rule extract_qc_barcodes:
         mem_mb          = qc_extract.mem_mb,
         runtime         = qc_extract.runtime,
         slurm_partition       = qc_extract.partition
-    script: 'scripts/extract_qc_barcodes.sh'
+    script: "scripts/extract_qc_barcodes.sh"
 
 
 rule download_variants:
@@ -137,7 +139,7 @@ rule cellsnplite:
         variant_vcf=cellbender.dir + '/genome1K.phase3.SNP_AF5e2.chr1toX.hg38.vcf.gz',
         good_bcs=cellbender.dir + '/{library}/qc-barcodes.txt'
     output:
-        vcf = cellranger.dir + '_QC/{library}/cellSNP/cellSNP.cells.vcf.gz'
+        vcf = cellranger.dir + '_QC/{library}/cellSNP/cellSNP.cells.sorted.vcf.gz'
     conda: 'envs/python-env.yaml'
     params:
         scratch=slurm.scratch_dir,
@@ -151,27 +153,96 @@ rule cellsnplite:
         slurm_partition = cellsnp.partition
     script: 'scripts/cellsnp-lite.sh'
 
+# rule sort_cellsnp:
+#     '''
+#     Sorts cellsnp vcf so it can be used with Vireo
+#     Not needed; sorting incorporated into the cellsnp-lite rule
+#     '''
+#     input: 
+#         cellranger.dir + '_QC/{library}/cellSNP/cellSNP.cells.vcf.gz',
+#     output:
+#         vcf = cellranger.dir + '_QC/{library}/cellSNP/cellSNP.cells.sorted.vcf.gz',
+#         index = cellranger.dir + '_QC/{library}/cellSNP/cellSNP.cells.sorted.vcf.gz.tbi',
+#     conda: 'envs/python-env.yaml'
+#     params:
+#         scratch=slurm.scratch_dir,
+#     resources:
+#         gres                = f"lscratch:{vireo.scratch_gb}",
+#         cpus_per_task       = 1,
+#         mem_mb              = 30000,
+#         runtime             = '2h',
+#     shell:
+#         '''
+#         bcftools sort {input} -T {params.scratch}/ -O z -o {output.vcf}
+#         bcftools index -t {output.vcf}
+# #         '''
 
-rule vireo:
+# rule vireo:
+#     '''
+#     Demultiplexes cellsnp-lite genotype calls per cell barcode.
+#     Runs assuming the provided donor list for each pool is accurate.
+#     '''
+#     input: 
+#         genotypes_vcf = vireo.dir + '/genotypes.snps.transcriptome.vcf.gz',
+#         index = vireo.dir + '/genotypes.vcf.gz.tbi',
+#         cellsnp_vcf = cellranger.dir + '_QC/{library}/cellSNP/cellSNP.cells.sorted.vcf.gz',
+#         donor_list = config.preprocess.reads_organized + '/{library}/provided_sample_list.txt'
+#     output:
+#         out=config.vireo.dir +'/{library}/chunk_{chunk}/donor_ids.tsv'
+#     conda: 'envs/python-env.yaml'
+#     params:
+#         scratch=slurm.scratch_dir,
+#         chunks=vireo.chunks
+#     resources:
+#         gres                = f"lscratch:{vireo.scratch_gb}",
+#         cpus_per_task       = vireo.cpus_per_task,
+#         mem_mb              = vireo.mem_mb,
+#         runtime             = vireo.runtime,
+#         slurm_partition     = vireo.partition
+#     script: 'scripts/vireo.sh'
+
+rule vireo_single:
     '''
     generates pileup for 10x data
     Mode 2a: droplet based single cells without given SNPs (infer variants from pileup)
     '''
     input: 
-        genotypes_vcf = vireo.dir + '/genotypes.snps.vcf.gz',
-        index = vireo.dir + '/genotypes.vcf.gz.tbi',
-        cellsnp_vcf = cellranger.dir + '_QC/{library}/cellSNP/cellSNP.cells.vcf.gz',
-        donor_list = config.preprocess.reads_organized + '/{library}/provided_sample_list.txt'
+        genotypes_vcf = vireo.dir + '/genotypes.transcriptome.snps.vcf.gz',
+        cellsnp_vcf = cellranger.dir + '_QC/{library}/cellSNP/cellSNP.cells.sorted.vcf.gz',
+        donor_list = preprocess.reads_organized + '/{library}/provided_sample_list_renamed.txt'
     output:
-        out=config.vireo.dir +'/{library}/chunk_{chunk}/donor_ids.tsv'
+        out=config.vireo.dir +'/{library}/vireo/donor_ids.tsv'
     conda: 'envs/python-env.yaml'
     params:
         scratch=slurm.scratch_dir,
-        chunks=vireo.chunks
     resources:
         gres                = f"lscratch:{vireo.scratch_gb}",
         cpus_per_task       = vireo.cpus_per_task,
         mem_mb              = vireo.mem_mb,
         runtime             = vireo.runtime,
         slurm_partition     = vireo.partition
-    script: 'scripts/vireo.sh'
+    script: 'scripts/vireo_single.sh'
+
+rule assign_cell_donors:
+    '''
+    Filters out cells that are below a certain threshold of the demultiplexed proportion
+    '''
+    input:
+        demux_assignment = vireo.dir + '/{library}/vireo/donor_ids.tsv',
+        demux_summary = vireo.dir + '/{library}/vireo/summary.tsv',
+        in_h5 = cellbender.dir + '/{library}/output_filtered.h5'
+    output:
+        out_h5 = cellbender.dir + '/{library}/demux.h5'
+    conda: 'envs/python-env.yaml'
+    params:
+        min_fraction = vireo.min_fraction,
+        min_cells = vireo.min_cells,
+        max_doublet_LL = vireo.max_doublet_LL
+    resources:
+        cpus_per_task = scanpy_single.cpus_per_task,
+        mem_mb = scanpy_single.mem_mb,
+        runtime = scanpy_single.runtime,
+        partition = scanpy_single.partition,
+    group:
+        'assign_donors'
+    script: 'scripts/assign_cell_donors.py'

@@ -18,30 +18,17 @@ N_DONORS=$(awk 'END {print NR-1}' $DONOR_LIST)
 
 cd ${TMPDIR}
 
-# First sort cellsnp output VCF
-bcftools sort $CELLSNP_VCF -T /lscratch/${SLURM_JOB_ID}/ -O z -o cells.sorted.vcf.gz 
-bcftools index -t cells.sorted.vcf.gz
-
 
 # Split cellsnp vcf into chunks, first by creating N files with 
 echo "Splitting into $CHUNKS chunks"
-bcftools query -l cells.sorted.vcf.gz > all_samples.txt
+bcftools query -l ${CELLSNP_VCF} > all_samples.txt
 split -n l/${CHUNKS} -d -a 2 --additional-suffix=.txt all_samples.txt samples_chunk_
 
 mkdir output
 
-# # For each chunk:
-# for f in samples_chunk_*.txt; do
-#     n=${f#samples_chunk_}; n=${n%.txt}
-    
-#     # For testing, only do first chunk
-#     if [[ "$n" > 1 ]]; then
-#         continue
-#     fi
-#     # Delete above section after testing
 
 echo "Working on pulling out chunk_${N}.vcf.gz"
-CMD=(bcftools view -S samples_chunk_0$N.txt --force-samples -Oz -o chunk_${N}.vcf.gz cells.sorted.vcf.gz)
+CMD=(bcftools view -S samples_chunk_0$N.txt --force-samples -Oz -o chunk_${N}.vcf.gz ${CELLSNP_VCF})
 echo ${CMD[@]}
 ${CMD[@]}
 
