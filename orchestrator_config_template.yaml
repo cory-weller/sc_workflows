@@ -1,0 +1,70 @@
+project: 05_amp-pd-transcriptomics-BR-RSNSR
+apptainer_binds: '/data,/vf,/lscratch,/fdb'
+slurm:
+    scratch_dir: '/lscratch/$SLURM_JOB_ID'
+    gpu_partition: gpu
+    card_patition: niacard
+    norm_partition: norm
+    gpu_extra: '--gpus-per-node=a100:1'
+    nia_extra: '--gpus-per-node=h200:1'
+synapse:
+    metadata_file: DATA/synapse-file-metadata.tsv
+    clobber: False
+    tokenfile: ~/.synapsetoken
+    datasets:
+        - syn26374887 # Sequencing Reads
+        - syn47136972 # Clinical metadata
+        - syn43078438 # Transcriptomics metadata
+preprocess:
+    reads_raw: DATA/READS_RAW
+    reads_organized: DATA/READS_LINKED
+    genotypes_vcf: DATA/GENOTYPES/AMPPD_postmortem_joint_gt_call_97donors.vcf.gz
+qc:
+    genes_min: 250
+    mito_max: 15        #
+    ribo_max: 10        # Percentage as whole number, 10 = 10%
+    doublet_max: 0.15   # Scrublet score
+    mem_mb: 32000
+cellranger:
+    dir: DATA/CELLRANGER
+    scratch_gb: 500
+    transcriptome: /fdb/cellranger/refdata-gex-GRCh38-2024-A
+    gtf: /fdb/cellranger/refdata-gex-GRCh38-2024-A/genes/genes.gtf.gz
+    create_bam: true                            # true or false - all lowercase required
+    module: 'cellranger/10.1.0'
+    cpus_per_task: 16
+    mem_mb: 80000
+    runtime: 16h
+cellbender:
+    dir: DATA/CELLBENDER
+    apptainer: /data/wellerca/cellbender.sif
+    scratch_gb: 500
+    cpus_per_task: 4
+    mem_mb: 50000
+    runtime: 5h
+qc_extract:
+    cpus_per_task: 12
+    mem_mb: 40000
+    runtime: 12h
+    partition: norm
+cellsnp:
+    scratch_gb: 100
+    cpus_per_task: 10
+    mem_mb: 40000
+    runtime: 18h
+    partition: norm
+vireo:
+    dir: DATA/VIREO
+    scratch_gb: 50
+    cpus_per_task: 1
+    mem_mb: 1900000
+    runtime: 16h
+    partition: largemem
+    min_fraction: 0.05          # exclude samples below this fraction of the entire pool
+    min_cells:  100             # exclude samples with fewer than this many cells
+    max_doublet_LL: -10         # exclude cells with doublet_logLikRatio above this
+scanpy_single:
+    cpus_per_task: 1
+    mem_mb: 36000
+    runtime: 1h
+    partition: quick

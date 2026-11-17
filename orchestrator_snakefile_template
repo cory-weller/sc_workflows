@@ -1,0 +1,62 @@
+#!/usr/bin/env python3
+import sys
+from pathlib import Path
+sys.tracebacklimit = 0
+
+configfile: 'config.yaml'
+
+from sc_workflows.helpers import DotDict
+config = DotDict(config)
+
+
+
+# # Load sample mapping file and format as 5-digit integer prepended with 'S'
+# sample_map = {}
+# with open(mapping_file, 'r') as infile:
+#     for line in infile:
+#         orig, new = line.strip().split(' ')
+#         sample_map[orig] = f"S{int(new):05d}"
+
+# inverted_map = {value: key for key, value in sample_map.items()}
+# assert len(sample_map) == len(inverted_map), 'Sample keys or values are not unique, cannot inverse lookup!'
+
+library_csv = expand(config.cellranger.dir +'/{ID}/libraries.csv', ID=inverted_map.keys())
+cellranger_files = expand(config.cellranger.dir +'/{ID}/possorted_genome_bam.bam', ID=inverted_map.keys())
+cellbender_files = expand(config.cellbender.dir +'/{ID}/output_filtered.h5', ID=inverted_map.keys())
+qc_bc_files = expand(config.cellbender.dir +'/{ID}/qc-barcodes.txt', ID=inverted_map.keys())
+qc_bam_files = expand(config.cellranger.dir +'_QC/{ID}/possorted_genome_bam.bam', ID=inverted_map.keys())
+cellsnp_files = expand(config.cellranger.dir +'_QC/{ID}/cellSNP/cellSNP.cells.vcf.gz', ID=inverted_map.keys())
+vireo_files = expand(config.vireo.dir +'/{ID}/chunk_{CHUNK}/donor_ids.tsv', ID=inverted_map.keys(), CHUNK=range(10))
+vireo_single_files = expand(config.vireo.dir +'/{ID}/vireo/donor_ids.tsv', ID=inverted_map.keys())
+demux_h5 = expand(config.cellbender.dir + '/{ID}/demux.h5', ID=inverted_map.keys())
+
+to_run = demux_h5
+print("TARGETS:", to_run)
+rule all:
+    input: to_run
+
+localrules: rename_files, build_library_csv, download_10x_subset_binary, fix_donor_list
+
+print("TARGETS:", rules.all.input)
+
+
+
+##############################
+# MODULE IMPORTS
+##############################
+module sc_workflows:
+    snakefile: 'sc_workflows/Snakefile'
+    config: config
+
+use rule run_cellranger from sc_workflows
+use rule cellbender_apptainer from sc_workflows
+use rule qc_barcodes from sc_workflows
+use rule download_10x_subset_binary from sc_workflows
+use rule extract_qc_barcodes from sc_workflows
+use rule download_variants from sc_workflows
+use rule cellsnplite from sc_workflows
+use rule vireo_single from sc_workflows
+# for Vireo, job runtime and max memory had to be incremented for the final ~20 jobs. They initially
+# completed fine with 6h and 900 GB memory, but a subset of jobs ultimately needed twice those values.
+
+use rule assign_cell_donors from sc_workflows
