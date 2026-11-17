@@ -8,6 +8,8 @@ from pathlib import Path
 import os
 import pandas as pd
 
+from sc_workflows.scripts.helpers import *
+
 
 #===================================================================================================
 # 01 Load config
@@ -26,42 +28,6 @@ from synapseclient.models import (
     File, Folder, Project, Table, EntityView, Dataset,
     DatasetCollection, MaterializedView, SubmissionView, VirtualTable
 )
-
-
-def require_path(path, label, kind, create=False):
-    """kind must be 'file' or 'dir'."""
-    if kind not in ("file", "dir"):
-        raise ValueError("kind must be 'file' or 'dir'")
-    path = Path(path).resolve()
-    if path.exists():
-        # exists — verify it's the right type
-        if kind == "file" and not path.is_file():
-            raise FileNotFoundError(f"{label} {path} exists but is not a file")
-        if kind == "dir" and not path.is_dir():
-            raise NotADirectoryError(f"{label} {path} exists but is not a directory")
-        return path.absolute()
-    # doesn't exist
-    if not create:
-        raise FileNotFoundError(f"required {label} {kind} {path} does not exist")
-    elif create:
-        try:
-            if kind == "file":
-                path.parent.mkdir(parents=True, exist_ok=True)  # ensure parent dir
-                path.touch()
-            elif kind == 'dir':
-                path.mkdir(parents=True, exist_ok=True)
-            return path.absolute()
-        except OSError as e:
-            raise OSError(f"ERROR: could not create {label} {kind} {path}") from e
-
-
-def get_md5(path:PosixPath):
-    path = str(path.resolve().absolute())
-    hash_md5 = hashlib.md5()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(4096), b""):
-            hash_md5.update(chunk)
-    return hash_md5.hexdigest()
 
 
 async def main():

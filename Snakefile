@@ -6,7 +6,7 @@ import yaml
 min_version("9.0")
 
 
-from sc_workflows.helpers import DotDict
+from sc_workflows.scripts.helpers import DotDict
 
 # Make more easily-accessible dicts
 config = DotDict(config)

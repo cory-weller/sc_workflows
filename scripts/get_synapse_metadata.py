@@ -8,15 +8,7 @@ import os
 import sys
 sys.tracebacklimit = 0
 
-# try:
-#     from sysbio_sc import *
-# except ModuleNotFoundError:
-#     try:
-#         sys.path.append('src')
-#         from sysbio_sc import *
-#     except:
-#         raise
-
+from sc_workflows.scripts.helpers import *
 
 project_dir = Path('.').resolve().as_posix()
 data_dir = Path(snakemake.output.metadata_file).resolve().parent.as_posix()
@@ -147,32 +139,6 @@ def flatten_files(node):
     for folder in node.folders:
         files += flatten_files(folder)
     return files
-
-def require_path(path, label, kind, create=False):
-    """kind must be 'file' or 'dir'."""
-    if kind not in ("file", "dir"):
-        raise ValueError("kind must be 'file' or 'dir'")
-    path = Path(path).resolve()
-    if path.exists():
-        # exists — verify it's the right type
-        if kind == "file" and not path.is_file():
-            raise FileNotFoundError(f"{label} {path} exists but is not a file")
-        if kind == "dir" and not path.is_dir():
-            raise NotADirectoryError(f"{label} {path} exists but is not a directory")
-        return path.absolute()
-    # doesn't exist
-    if not create:
-        raise FileNotFoundError(f"required {label} {kind} {path} does not exist")
-    elif create:
-        try:
-            if kind == "file":
-                path.parent.mkdir(parents=True, exist_ok=True)  # ensure parent dir
-                path.touch()
-            elif kind == 'dir':
-                path.mkdir(parents=True, exist_ok=True)
-            return path.absolute()
-        except OSError as e:
-            raise OSError(f"ERROR: could not create {label} {kind} {path}") from e
 
 async def main():
 
