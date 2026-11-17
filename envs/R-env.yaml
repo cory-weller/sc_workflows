@@ -1,0 +1,7 @@
+name: R-env
+channels:
+  - conda-forge
+dependencies:
+  - r-base=4.4
+  - r-data.table
+  - r-openxlsx
