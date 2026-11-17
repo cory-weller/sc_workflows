@@ -20,6 +20,44 @@ vireo = config.vireo
 preprocess = config.preprocess
 scanpy_single = config.scanpy_single
 
+rule get_synapse_metadata:
+    """
+    Iterates over synapse IDs defined in config.yaml, recursively,
+    retrieving file metadata and writing to separate metadata.tsv files.
+    Outputs metadata in nested directories, reflecting file structure on synapse.
+    Requires a synapse authentication token, its location defined in config.yaml
+    """
+    output: metadata_file = config.synapse.metadata_file
+    conda: 'envs/python-env.yaml'
+    params:
+        clobber = config.synapse.clobber,
+        tokenfile = config.synapse.tokenfile,
+        datasets = config.synapse.datasets,
+    script: 'scripts/get_synapse_metadata.py'
+
+
+
+rule download_synapse_data:
+    """
+    Iterates over the combined metadata folder. For every file, in the list,
+    if the file does not exist: it is downloaded using synapse get.
+    If the file exists,
+        If file.md5 has not been generated, it is generated.
+        file.md5 is compared to the metadata table.
+        if the md5 values do not match,
+            the file and file.md5 are deleted.
+            The bad file is logged as an error.
+    Only if no errors occur does .download-check get generated.
+    """
+    input: metadata_file = config.synapse.metadata_file
+    output: touchfile='.download_data.done'
+    conda: 'envs/python-env.yaml'
+    params:
+        clobber = config.synapse.clobber,
+        tokenfile = config.synapse.tokenfile,
+    script: 'scripts/download_synapse_data.py'
+
+
 rule run_cellranger:
     input: csv = cellranger.dir + '/{library}/libraries.csv'
     output: bam = cellranger.dir + '/{library}/possorted_genome_bam.bam'
