@@ -60,7 +60,8 @@ rule download_synapse_data:
 
 rule run_cellranger:
     input: csv = cellranger.dir + '/{library}/libraries.csv'
-    output: bam = cellranger.dir + '/{library}/possorted_genome_bam.bam'
+    output: bam = cellranger.dir + '/{library}/possorted_genome_bam.bam',
+            raw_h5= cellranger.dir + '/{library}/raw_feature_bc_matrix.h5'
     envmodules: cellranger.module
     params:
         create_bam = cellranger.create_bam,
@@ -76,7 +77,7 @@ rule run_cellranger:
     script: 'scripts/cellranger.sh'
 
 rule run_cellbender:
-    input: raw=cellranger.dir + '/{library}/raw_feature_bc_matrix.h5'
+    input: raw_h5=cellranger.dir + '/{library}/raw_feature_bc_matrix.h5'
     output: filtered= cellbender.dir + '/{library}/output_filtered.h5'
     resources:
         slurm_partition = slurm.gpu_partition,
@@ -90,7 +91,7 @@ rule run_cellbender:
     script: 'scripts/cellbender.sh'
 
 rule cellbender_apptainer:
-    input: raw=cellranger.dir + '/{library}/raw_feature_bc_matrix.h5'
+    input: raw_h5=cellranger.dir + '/{library}/raw_feature_bc_matrix.h5'
     output: filtered=cellbender.dir + '/{library}/output_filtered.h5'
     resources:
         slurm_partition = slurm.card_patition,

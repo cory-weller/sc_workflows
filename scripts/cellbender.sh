@@ -5,7 +5,7 @@ export TMPDIR=$(envsubst <<< ${snakemake_params[scratch]})
 echo "Temporary working directory: $TMPDIR"
 
 # Get full path name for outputs
-INH5=$(readlink -e ${snakemake_input[raw]})
+INH5=$(readlink -e ${snakemake_input[raw_h5]})
 OUTDIR=$(dirname $(readlink -m ${snakemake_output[filtered]}))
 
 
