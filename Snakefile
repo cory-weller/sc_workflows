@@ -112,17 +112,39 @@ rule qc_barcodes:
     '''
     generates a list of qc-acceptable barcodes for subsetting prior to freemuxlet
     '''
-    input: cellbenderh5=cellbender.dir + '/{library}/output_filtered.h5'
     output: good_bcs=cellbender.dir + '/{library}/qc-barcodes.txt'
     conda: 'envs/python-env.yaml'
+    group: 'qc_serial'
+    threads: 2
     params:
         genes_min = qc.genes_min,
         mito_max = qc.mito_max,
         ribo_max = qc.ribo_max,
         doublet_max = qc.doublet_max
     resources:
-        mem_mb = qc.mem_mb
+        mem_mb = qc.mem_mb,
+        serial_slot = 1,
+        cpus_per_task = 1
     script: 'scripts/qc-barcodes.py'
+
+rule qc_cellbenderh5:
+    '''
+    generates a list of qc-acceptable barcodes for subsetting prior to freemuxlet
+    '''
+    input: cellbenderh5=cellbender.dir + '/{library}/output_filtered.h5'
+    conda: 'envs/python-env.yaml'
+    group: 'qc_serial'
+    threads: 2
+    params:
+        genes_min = qc.genes_min,
+        mito_max = qc.mito_max,
+        ribo_max = qc.ribo_max,
+        doublet_max = qc.doublet_max
+    resources:
+        mem_mb = qc.mem_mb,
+        serial_slot = 1,
+        cpus_per_task = 1
+    script: 'scripts/qc-cellbenderh5.py'
 
 rule download_10x_subset_binary:
     '''

@@ -1,11 +1,19 @@
 #!/usr/bin/env python3
 
 import sys
+import os
 import anndata as ad
 import pandas as pd
 import scanpy as sc
 import scipy
 from pathlib import Path
+import numba
+
+n = min(snakemake.threads, numba.config.NUMBA_NUM_THREADS, len(os.sched_getaffinity(0)))
+sc.settings.n_jobs = n
+numba.set_num_threads(n)
+print(f"threads={snakemake.threads} numba={numba.config.NUMBA_NUM_THREADS} "
+      f"affinity={len(os.sched_getaffinity(0))} using={n}", flush=True)
 
 def main():
     cbh5 = Path(snakemake.input.cellbenderh5)
@@ -53,6 +61,15 @@ def main():
     
     with open(snakemake.output.good_bcs, 'w') as outfile:
         outfile.write('\n'.join(good_barcodes)+'\n')
+    
+    try:
+        if snakemake.params.write_h5:
+            adata.obs['library'] = snakemake.wildcards.library
+            adata.obs['cellbc'] = adata.obs.index + '_' + adata.obs['library']
+            adata.obs = adata.obs.set_index('cellbc')
+            adata.write_h5ad(snakemake.output.out_h5)
+    except NameError:
+        pass
 
 
 print('starting main block', flush=True)
