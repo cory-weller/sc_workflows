@@ -1,0 +1,42 @@
+executor: slurm
+use-envmodules: true
+software-deployment-method: conda
+conda-prefix: /data/$USER/conda-shared/
+jobs: 100
+local-cores: 1
+latency-wait: 120
+printshellcmds: true
+rerun-incomplete: true
+keep-going: true
+restart-times: 0
+max-jobs-per-second: 1
+max-status-checks-per-second: 0.1
+slurm-keep-successful-logs: true 
+verbose: true
+use-singularity: true
+
+rerun-triggers:
+    - mtime
+    #- params               # if parameters change
+    #- input                # if input name changes
+    #- software-env         # If conda env changes
+    #- code                 # if script or shell section changes
+
+group-components:
+    qc_serial: 10       # How many qc_barcodes or qc_cellbenderh5 jobs to bundle together in one slurm submission
+
+#---------------------------------------------------------------------------------------------------
+# DEFAULT RESOURCES
+#---------------------------------------------------------------------------------------------------
+
+default-resources:
+    slurm_partition: quick
+    runtime: 1h
+    tasks: 1
+    cpus_per_task: 1
+    mem_mb: 1234
+    gres: 'lscratch:20'
+
+#---------------------------------------------------------------------------------------------------
+# RULE-SPECIFIC RESOURCES. These will override any of the above defaults in a given job.
+#---------------------------------------------------------------------------------------------------
