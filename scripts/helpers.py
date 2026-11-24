@@ -1,3 +1,5 @@
+from pathlib import Path
+
 class DotDict(dict):
     """
     A dictionary subclass that enables dot notation for accessing, 
