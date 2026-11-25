@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from pathlib import Path
 from snakemake.utils import min_version
 import yaml
  
@@ -57,6 +58,15 @@ rule download_synapse_data:
         tokenfile = config.synapse.tokenfile,
     script: 'scripts/download_synapse_data.py'
 
+rule build_library_csv:
+    input: config.preprocess.reads_organized + '/{ID}/rename.done'
+    output: config.cellranger.dir + '/{ID}/libraries.csv'
+    shell:
+        '''
+        echo "fastqs,sample,library_type," > {output}
+        dir_name=$(readlink -e {input})
+        echo "$dir_name,sample,Gene Expression," >> {output}
+        '''
 
 rule run_cellranger:
     input: csv = cellranger.dir + '/{library}/libraries.csv'
@@ -76,19 +86,19 @@ rule run_cellranger:
         runtime= cellranger.runtime,
     script: 'scripts/cellranger.sh'
 
-rule run_cellbender:
-    input: raw_h5=cellranger.dir + '/{library}/raw_feature_bc_matrix.h5'
-    output: filtered= cellbender.dir + '/{library}/output_filtered.h5'
-    resources:
-        slurm_partition = slurm.gpu_partition,
-        gres = f"lscratch:{cellbender.scratch_gb}",
-        slurm_extra = slurm.gpu_extra,
-        cpus_per_task= cellbender.cpus_per_task,
-        mem_mb= cellbender.mem_mb,
-        runtime= cellbender.runtime,
-    params:
-        scratch=slurm.scratch_dir
-    script: 'scripts/cellbender.sh'
+# rule run_cellbender:
+#     input: raw_h5=cellranger.dir + '/{library}/raw_feature_bc_matrix.h5'
+#     output: filtered= cellbender.dir + '/{library}/output_filtered.h5'
+#     resources:
+#         slurm_partition = slurm.gpu_partition,
+#         gres = f"lscratch:{cellbender.scratch_gb}",
+#         slurm_extra = slurm.gpu_extra,
+#         cpus_per_task= cellbender.cpus_per_task,
+#         mem_mb= cellbender.mem_mb,
+#         runtime= cellbender.runtime,
+#     params:
+#         scratch=slurm.scratch_dir
+#     script: 'scripts/cellbender.sh'
 
 rule cellbender_apptainer:
     input: raw_h5=cellranger.dir + '/{library}/raw_feature_bc_matrix.h5'
@@ -112,6 +122,7 @@ rule qc_barcodes:
     '''
     generates a list of qc-acceptable barcodes for subsetting prior to freemuxlet
     '''
+    input: cellbenderh5=cellbender.dir + '/{library}/output_filtered.h5'
     output: good_bcs=cellbender.dir + '/{library}/qc-barcodes.txt'
     conda: 'envs/python-env.yaml'
     group: 'qc_serial'
@@ -127,24 +138,24 @@ rule qc_barcodes:
         cpus_per_task = 1
     script: 'scripts/qc-barcodes.py'
 
-rule qc_cellbenderh5:
-    '''
-    generates a list of qc-acceptable barcodes for subsetting prior to freemuxlet
-    '''
-    input: cellbenderh5=cellbender.dir + '/{library}/output_filtered.h5'
-    conda: 'envs/python-env.yaml'
-    group: 'qc_serial'
-    threads: 2
-    params:
-        genes_min = qc.genes_min,
-        mito_max = qc.mito_max,
-        ribo_max = qc.ribo_max,
-        doublet_max = qc.doublet_max
-    resources:
-        mem_mb = qc.mem_mb,
-        serial_slot = 1,
-        cpus_per_task = 1
-    script: 'scripts/qc-cellbenderh5.py'
+# rule qc_cellbenderh5:
+#     '''
+#     generates a list of qc-acceptable barcodes
+#     '''
+#     input: cellbenderh5=cellbender.dir + '/{library}/output_filtered.h5'
+#     conda: 'envs/python-env.yaml'
+#     group: 'qc_serial'
+#     threads: 2
+#     params:
+#         genes_min = qc.genes_min,
+#         mito_max = qc.mito_max,
+#         ribo_max = qc.ribo_max,
+#         doublet_max = qc.doublet_max
+#     resources:
+#         mem_mb = qc.mem_mb,
+#         serial_slot = 1,
+#         cpus_per_task = 1
+#     script: 'scripts/qc-cellbenderh5.py'
 
 rule download_10x_subset_binary:
     '''
@@ -165,7 +176,7 @@ rule extract_qc_barcodes:
     input: 
         bam = cellranger.dir + '/{library}/possorted_genome_bam.bam',
         good_bcs=cellbender.dir + '/{library}/qc-barcodes.txt',
-        tenx_subset_binary=cellbender.dir + '/subset-bam_linux'
+        tenx_subset_binary=ancient(cellbender.dir + '/subset-bam_linux')
     output:
         qc_bam = cellranger.dir + '_QC/{library}/possorted_genome_bam.bam'
     params:
